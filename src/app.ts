@@ -3,7 +3,7 @@ import path from "path"
 
 export abstract class App {
 
-  public static async run(): Promise<void> {
+  public static async run(): Promise<string | undefined> {
 
     let parsedParams: Params
 
@@ -40,6 +40,7 @@ export abstract class App {
     }
 
     console.log(`${line}`)
+    return line
   }
 
   private static async validateAndParseParams(): Promise<Params> {
