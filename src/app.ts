@@ -1,0 +1,152 @@
+import { createReadStream, existsSync, mkdirSync, readFile, writeFile } from "fs"
+import path from "path"
+
+export abstract class App {
+
+  public static async run(): Promise<void> {
+
+    let parsedParams: Params
+
+    try {
+      parsedParams = await this.validateAndParseParams()
+    } catch {
+      return
+    }
+
+    const {filePath, lineNumber, overwriteIndexFile} = parsedParams
+    let index: number[]
+
+    try {
+      index = await this.createOrLoadIndex(filePath, overwriteIndexFile)
+    } catch (err) {
+      console.error(err)
+      return
+    }
+
+    if (lineNumber > index.length - 1) {
+      console.error(`Line number parameter: ${lineNumber} is greater than the total number of lines in the input file: ${index.length - 1} (0 based)`)
+      return
+    }
+
+    let line: string
+    const startingPosition = lineNumber == 0 ? 0 : index[lineNumber - 1] + 1
+    const endingPosition = lineNumber == index.length - 1 ? index[lineNumber] : index[lineNumber] - 1
+
+    try {
+      line = await App.readLine(filePath, startingPosition, endingPosition)
+    } catch (err) {
+      console.error(err)
+      return
+    }
+
+    console.log(`${line}`)
+  }
+
+  private static async validateAndParseParams(): Promise<Params> {
+
+    const filePath = process.argv.at(2)
+    const lineNumber = process.argv.at(3)
+
+    if (!filePath || !lineNumber) {
+      console.error("2 arguments are required to run this program. Please pass in the file path followed by the line number.")
+      throw new Error("Parameters missing")
+    }
+
+    if (!existsSync(filePath)) {
+      console.error(`File: ${filePath} does not exist`)
+      throw new Error("Invalid file path")
+    }
+
+    const parsedLineNumber = Number(lineNumber)
+
+    if (Number.isNaN(parsedLineNumber) || parsedLineNumber < 0) {
+      console.error("Line number must be a number greater or equal to 0")
+      throw new Error("Invalid line number")
+    }
+
+    return new Params(filePath, parsedLineNumber, process.argv.at(4)?.toLowerCase() == 'true')
+  }
+
+  private static async createOrLoadIndex(filePath: string, overwriteIndexFile: boolean): Promise<number[]> {
+
+    const indexFilePath = `${__dirname}/indexes/${path.parse(filePath).name}.idx`
+
+    if (!overwriteIndexFile && existsSync(indexFilePath)) {
+      console.info(`Index file ${indexFilePath} was found. Loading index...`)
+      return await App.loadIndex(indexFilePath)
+    }
+
+    console.info(`Index file ${indexFilePath} was not found. Creating index...`)
+
+    if (!existsSync(`${__dirname}/indexes`)) {
+      mkdirSync(`${__dirname}/indexes`)
+    }
+
+    return new Promise((resolve, reject) => {
+
+      const newLineIdxs: number[] = []
+      const readStream = createReadStream(filePath, { encoding: 'utf-8' })
+
+      readStream.on('end', () => {
+        writeFile(indexFilePath, newLineIdxs.join('\n'), err => {
+          if (err) return reject(err)
+          console.info('Finished creating index file')
+          resolve(newLineIdxs)
+        })
+      })
+
+      readStream.on('data', chunk => {
+        for (let i = 0; i < chunk.length; i++) {
+          if (chunk[i] == '\n' || i == chunk.length - 1) {
+            newLineIdxs.push(i)
+          }
+        }
+      })
+
+      readStream.on('error', err => reject(err))
+
+    })
+  }
+
+  private static async loadIndex(filePath: string): Promise<number[]> {
+    return new Promise((resolve, reject) => {
+      readFile(filePath, 'utf-8', (err, data) => {
+        if (err) return reject(err)
+        console.info('Finished loading index file.')
+        resolve(data.split('\n').map(Number))
+      })
+    })
+  }
+
+  private static async readLine(filePath: string, lineStartPosition: number, lineEndPosition: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+
+      let line: string
+
+      const readStream = createReadStream(filePath, {
+        encoding: 'utf-8',
+        start: lineStartPosition,
+        end: lineEndPosition
+      })
+
+      readStream.on('end', () => {
+        return resolve(line)
+      })
+
+      readStream.on('data', chunk => {
+        line = chunk as string
+      })
+
+      readStream.on('error', err => reject(err))
+
+    })
+  }
+
+}
+
+class Params {
+  constructor(
+      public filePath: string,
+      public lineNumber: number,
+      public overwriteIndexFile: boolean){}
+}
