@@ -86,8 +86,10 @@ export abstract class App {
 
       const newLineIdxs: number[] = []
       const readStream = createReadStream(filePath, { encoding: 'utf-8' })
+      let offset = 0
 
       readStream.on('end', () => {
+        newLineIdxs.push(offset)
         writeFile(indexFilePath, newLineIdxs.join('\n'), err => {
           if (err) return reject(err)
           console.info('Finished creating index file')
@@ -97,10 +99,11 @@ export abstract class App {
 
       readStream.on('data', chunk => {
         for (let i = 0; i < chunk.length; i++) {
-          if (chunk[i] == '\n' || i == chunk.length - 1) {
-            newLineIdxs.push(i)
+          if (chunk[i] == '\n') {
+            newLineIdxs.push(offset + i)
           }
         }
+        offset += chunk.length
       })
 
       readStream.on('error', err => reject(err))
