@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, mkdirSync, readFile, writeFile } from "fs"
+import { createReadStream, readFile, writeFile, promises as fsPromises, constants as fsConstants } from "fs"
 import path from "path"
 
 export abstract class App {
@@ -53,7 +53,9 @@ export abstract class App {
       throw new Error("Parameters missing")
     }
 
-    if (!existsSync(filePath)) {
+    try {
+      await fsPromises.access(filePath, fsConstants.R_OK)
+    } catch {
       console.error(`File: ${filePath} does not exist`)
       throw new Error("Invalid file path")
     }
@@ -72,15 +74,36 @@ export abstract class App {
 
     const indexFilePath = `${__dirname}/indexes/${path.parse(filePath).name}.idx`
 
-    if (!overwriteIndexFile && existsSync(indexFilePath)) {
+    let indexFileExists = true
+
+    try {
+      await fsPromises.access(indexFilePath, fsConstants.R_OK)
+    } catch (err) {
+      indexFileExists = false
+    }
+
+    if (!overwriteIndexFile && indexFileExists) {
       console.info(`Index file ${indexFilePath} was found. Loading index...`)
       return await App.loadIndex(indexFilePath)
     }
 
     console.info(`Index file ${indexFilePath} was not found. Creating index...`)
 
-    if (!existsSync(`${__dirname}/indexes`)) {
-      mkdirSync(`${__dirname}/indexes`)
+    let indexesDirExists = true
+
+    try {
+      await fsPromises.access(`${__dirname}/indexes`, fsConstants.W_OK)
+    } catch {
+      indexesDirExists = false
+    }
+
+    if (!indexesDirExists) {
+      try {
+        await fsPromises.mkdir(`${__dirname}/indexes`)
+      } catch (err) {
+        console.error("Failed to create a directory for storing index files")
+        throw new Error("Couldn't create /indexes directory")
+      }
     }
 
     return new Promise((resolve, reject) => {

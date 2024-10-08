@@ -1,4 +1,4 @@
-import { existsSync, promises as fsPromises } from "fs"
+import { promises as fsPromises, constants as fsConstants } from "fs"
 import { fail } from "assert"
 import { App } from "../app"
 
@@ -8,7 +8,9 @@ describe("App.run", () => {
 
     const testFileName = "example1.txt"
 
-    if (!existsSync(`${__dirname}/${testFileName}`)) {
+    try {
+      await fsPromises.access(`${__dirname}/${testFileName}`, fsConstants.R_OK)
+    } catch {
       fail(`Test file ${testFileName} not found`)
     }
 
@@ -22,7 +24,9 @@ describe("App.run", () => {
 
     const indexFileName = testFileName.replace(".txt", ".idx")
 
-    if (!existsSync(`${__dirname}/../indexes/${indexFileName}`)) {
+    try {
+      await fsPromises.access(`${__dirname}/../indexes/${indexFileName}`, fsConstants.R_OK)
+    } catch {
       fail(`Index file ${indexFileName} was not created`)
     }
 
@@ -47,7 +51,9 @@ describe("App.run", () => {
 
       const testFileName = "example2.txt"
 
-      if (!existsSync(`${__dirname}/${testFileName}`)) {
+      try {
+        await fsPromises.access(`${__dirname}/${testFileName}`, fsConstants.R_OK)
+      } catch {
         fail(`Test file ${testFileName} not found`)
       }
 
